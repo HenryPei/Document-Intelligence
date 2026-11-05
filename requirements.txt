@@ -2,3 +2,4 @@ sqlalchemy
 psycopg[binary]
 alembic
 python-dotenv
+pdfplumber
