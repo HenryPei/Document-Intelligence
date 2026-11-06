@@ -3,3 +3,5 @@ psycopg[binary]
 alembic
 python-dotenv
 pdfplumber
+uvicorn
+fastapi
