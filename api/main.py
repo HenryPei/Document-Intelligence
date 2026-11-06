@@ -1,9 +1,16 @@
 from fastapi import FastAPI
 from sqlalchemy import text
 from pipeline.db import engine
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.get("/search")
 def search(q: str):
@@ -11,7 +18,7 @@ def search(q: str):
         rows = conn.execute(
             text("""
                 SELECT d.original_filename, p.page_number,
-                       ts_headline('simple', p.text, q) AS snippet
+                       ts_headline('simple', p.text, q, 'MaxWords=60, MinWords=20, MaxFragments=3') AS snippet
                 FROM pages p
                 JOIN documents d ON d.id = p.document_id,
                      plainto_tsquery('simple', :q) q
