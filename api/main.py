@@ -58,3 +58,25 @@ def get_page(doc_id: int, page_num: int):
         "page_number": page_num,
         "text": row.text,
     }
+
+@app.get("/documents/{doc_id}/pages")
+def get_all_pages(doc_id: int):
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT p.page_number, p.text, d.original_filename
+                    FROM pages p
+                JOIN documents d ON d.id = p.document_id
+                WHERE p.document_id = :doc_id
+                ORDER BY p.page_number
+            """),
+            {"doc_id": doc_id},
+        ).fetchall()
+
+    return {
+        "filename": rows[0].original_filename if rows else "",
+        "pages": [
+            {"page_number": row.page_number, "text": row.text}
+            for row in rows
+        ],
+    }
