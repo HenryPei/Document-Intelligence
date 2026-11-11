@@ -46,6 +46,7 @@ def ingest_file(path: Path) -> str:
                 INSERT INTO documents
                     (sha256, original_filename, stored_path, file_type, page_count, status)
                 VALUES (:sha, :name, :stored, 'pdf', :count, :status)
+                ON CONFLICT (sha256) DO NOTHING
                 RETURNING id
             """),
             {
@@ -55,7 +56,10 @@ def ingest_file(path: Path) -> str:
                 "count": len(pages),
                 "status": status,
             },
-        ).scalar_one()
+        ).scalar_one_or_none()
+
+        if doc_id is None:
+            return "duplicate"
 
         for page in pages:
             conn.execute(

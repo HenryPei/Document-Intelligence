@@ -29,6 +29,7 @@ def search(q: str):
                      plainto_tsquery('simple', :q) q
                 WHERE p.search_vector @@ q
                 ORDER BY ts_rank(p.search_vector, q) DESC
+                LIMIT 50
             """),
             {"q": q},
         ).fetchall()
