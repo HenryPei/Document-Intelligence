@@ -4,6 +4,8 @@ function App() {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [page, setPage] = useState(null);
+  const [files, setFiles] = useState([]);
+  const [uploadResult, setUploadResult] = useState(null);
 
   useEffect(() => {
     if (page && page.scrollTo) {
@@ -25,6 +27,17 @@ function App() {
     setPage({ ...data, scrollTo: pageNum });
   }
 
+  async function uploadFiles(e) {
+    e.preventDefault();
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append("files", file)
+    }
+    const response = await fetch("http://localhost:8000/uploadfile/", {method: "POST", body: formData});
+    const data = await response.json();
+    setUploadResult(data);
+  }
+
   return (
     <div>
       <h1>CEDIB Document Search</h1>
@@ -37,6 +50,13 @@ function App() {
         />
         <button type="submit">Search</button>
       </form>
+      <form onSubmit={uploadFiles}>
+        <input type="file" multiple onChange={(e) => setFiles(Array.from(e.target.files))} />
+        <button type="submit">Upload</button>
+      </form>
+      {uploadResult && (
+        <p>Done: {uploadResult.done}, Duplicate: {uploadResult.duplicate}, Needs OCR: {uploadResult.needs_ocr}, Failed: {uploadResult.failed}</p>
+      )}
       <ul>
         {results.map((r, i) => (
           <li key={i} onClick={() => loadPage(r.document_id, r.page_number)} style={{ cursor: "pointer" }}>

@@ -1,7 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile
 from sqlalchemy import text
 from pipeline.db import engine
 from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
+from pipeline.ingest import ingest_file
+import traceback
+
+UPLOADS = Path("data/uploads")
 
 app = FastAPI()
 
@@ -28,7 +33,7 @@ def search(q: str):
             {"q": q},
         ).fetchall()
 
-        results = [
+        return [
             {
                 "filename": row.original_filename,
                 "page_number": row.page_number,
@@ -37,8 +42,6 @@ def search(q: str):
             }
             for row in rows
         ]
-
-    return results
 
 @app.get("/documents/{doc_id}/pages/{page_num}")
 def get_page(doc_id: int, page_num: int):
@@ -80,3 +83,22 @@ def get_all_pages(doc_id: int):
             for row in rows
         ],
     }
+
+@app.post("/uploadfile/")
+async def upload_file_batch(files: list[UploadFile]):
+    UPLOADS.mkdir(parents=True, exist_ok=True)
+    counts = {"done": 0, "needs_ocr": 0, "failed": 0, "duplicate": 0}
+
+    for file in files:
+        content = await file.read()
+        path = UPLOADS / file.filename
+        open(path, "wb").write(content)
+        try:
+            status = ingest_file(path)
+            counts[status] += 1
+        except Exception as e:
+            counts["failed"] += 1
+            print(path, e)
+            traceback.print_exc()
+
+    return counts
