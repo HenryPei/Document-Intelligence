@@ -1,10 +1,11 @@
-from fastapi import FastAPI, UploadFile
+from fastapi import FastAPI, UploadFile, HTTPException
 from sqlalchemy import text
 from pipeline.db import engine
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 from pipeline.ingest import ingest_file
 import traceback
+import os
 
 UPLOADS = Path("data/uploads")
 
@@ -85,7 +86,7 @@ def get_all_pages(doc_id: int):
         ],
     }
 
-@app.post("/uploadfile/")
+@app.post("/uploadfile")
 async def upload_file_batch(files: list[UploadFile]):
     UPLOADS.mkdir(parents=True, exist_ok=True)
     counts = {"done": 0, "needs_ocr": 0, "failed": 0, "duplicate": 0}
@@ -103,3 +104,22 @@ async def upload_file_batch(files: list[UploadFile]):
             traceback.print_exc()
 
     return counts
+
+@app.delete("/documents/{doc_id}")
+async def delete_document(doc_id: int):
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("""
+                DELETE from documents WHERE id = :doc_id
+                RETURNING stored_path
+            """),
+            {"doc_id":doc_id}
+        )
+        row = result.fetchone()
+        conn.commit()
+        if not row:
+            raise HTTPException(status_code=404, detail="Document not found")
+        try:
+            os.remove(row.stored_path)
+        except Exception as e:
+            pass

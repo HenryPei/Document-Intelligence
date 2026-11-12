@@ -33,9 +33,16 @@ function App() {
     for (const file of files) {
       formData.append("files", file)
     }
-    const response = await fetch("http://localhost:8000/uploadfile/", {method: "POST", body: formData});
+    const response = await fetch(`http://localhost:8000/uploadfile/`, {method: "POST", body: formData});
     const data = await response.json();
     setUploadResult(data);
+  }
+
+  async function handleDelete(docId) {
+    if (!window.confirm("Delete this document?")) return;
+    await fetch (`http://localhost:8000/documents/${docId}`, {method: "DELETE"});
+    setResults(prev => prev.filter(r => r.document_id !== docId));
+    setPage(null);
   }
 
   return (
@@ -85,6 +92,7 @@ function App() {
           }} onClick={(e) => e.stopPropagation()}>
             <h2>{page.filename}</h2>
             <button onClick={() => setPage(null)}>✕ Close</button>
+               <button onClick={() => handleDelete(page.document_id)}>🗑 Delete</button>
             {page.pages.map((p) => (
               <div key={p.page_number} id={`page-${p.page_number}`} style={{
                 borderTop: "1px solid #ccc",
