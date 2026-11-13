@@ -6,6 +6,7 @@ function App() {
   const [page, setPage] = useState(null);
   const [files, setFiles] = useState([]);
   const [uploadResult, setUploadResult] = useState(null);
+  const [documents, setDocuments] = useState([]);
 
   useEffect(() => {
     if (page && page.scrollTo) {
@@ -13,6 +14,8 @@ function App() {
       if (el) el.scrollIntoView({ behavior: "smooth" });
     }
   }, [page]);
+
+  useEffect(() => { loadDocuments(); }, [])
 
   async function handleSearch(e) {
     e.preventDefault();
@@ -45,6 +48,12 @@ function App() {
     setPage(null);
   }
 
+  async function loadDocuments() {
+    const response = await fetch (`http://localhost:8000/documents/`)
+    const data = await response.json();
+    setDocuments(data);
+  }
+
   return (
     <div>
       <h1>CEDIB Document Search</h1>
@@ -64,6 +73,13 @@ function App() {
       {uploadResult && (
         <p>Done: {uploadResult.done}, Duplicate: {uploadResult.duplicate}, Needs OCR: {uploadResult.needs_ocr}, Failed: {uploadResult.failed}</p>
       )}
+      <ul style={{ listStyle: "none", padding: 0 }}>
+        {documents.map((doc) => (
+        <li key={doc.document_id} onClick={() => loadPage(doc.document_id, 1)} style={{ cursor: "pointer" }}>
+          <strong>{doc.filename}</strong> — {doc.page_count} pages
+        </li>
+        ))}
+      </ul>
       <ul>
         {results.map((r, i) => (
           <li key={i} onClick={() => loadPage(r.document_id, r.page_number)} style={{ cursor: "pointer" }}>

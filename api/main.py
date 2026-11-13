@@ -123,3 +123,25 @@ async def delete_document(doc_id: int):
             os.remove(row.stored_path)
         except Exception as e:
             pass
+
+@app.get("/documents")
+async def get_documents():
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("""
+                SELECT d.id, d.original_filename, d.page_count, d.created_at
+                    FROM documents d
+                ORDER BY created_at desc
+                LIMIT 20
+            """)
+        ).fetchall()
+
+    return [
+        {
+        "document_id": row.id,
+        "filename": row.original_filename,
+        "page_count": row.page_count,
+        "created_at": row.created_at
+    }
+    for row in rows
+    ]
