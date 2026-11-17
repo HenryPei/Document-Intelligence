@@ -103,4 +103,4 @@ def classify_all(config_path: str):
         print(f"Classified {classified}/{len(rows)} documents. {len(rows) - classified} unmatched.")
 
 if __name__ == "__main__":
-    classify_all("config/presets/cedib_lithium.yaml")
+    classify_all("config/presets/lithium.yaml")
