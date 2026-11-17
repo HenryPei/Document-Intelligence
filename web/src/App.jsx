@@ -76,7 +76,7 @@ function App() {
       <ul style={{ listStyle: "none", padding: 0 }}>
         {documents.map((doc) => (
         <li key={doc.document_id} onClick={() => loadPage(doc.document_id, 1)} style={{ cursor: "pointer" }}>
-          <strong>{doc.filename}</strong> — {doc.page_count} pages
+          <strong>{doc.title || doc.filename}</strong> — {doc.company && `${doc.company} · `}{doc.doc_type && `${doc.doc_type} · `}{doc.page_count} pages
         </li>
         ))}
       </ul>

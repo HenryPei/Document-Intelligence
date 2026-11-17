@@ -23,7 +23,7 @@ def search(q: str):
     with engine.connect() as conn:
         rows = conn.execute(
             text("""
-                SELECT d.original_filename, p.page_number, p.document_id,
+                SELECT d.original_filename, p.page_number, p.document_id, d.doc_type, d.title, d.doc_date, d.company
                        ts_headline('simple', p.text, q, 'MaxWords=40, MinWords=20, MaxFragments=3') AS snippet
                 FROM pages p
                 JOIN documents d ON d.id = p.document_id,
@@ -41,6 +41,10 @@ def search(q: str):
                 "page_number": row.page_number,
                 "snippet": row.snippet,
                 "document_id": row.document_id
+                "doc_type": row.doc_type,
+                "title": row.title,
+                "doc_date": str(row.doc_date) if row.doc_date else None,
+                "company": row.company
             }
             for row in rows
         ]
@@ -129,7 +133,7 @@ async def get_documents():
     with engine.connect() as conn:
         rows = conn.execute(
             text("""
-                SELECT d.id, d.original_filename, d.page_count, d.created_at
+                SELECT d.id, d.original_filename, d.page_count, d.created_at, d.doc_type, d.title, d.doc_date, d.company
                     FROM documents d
                 ORDER BY created_at desc
                 LIMIT 20
@@ -141,7 +145,11 @@ async def get_documents():
         "document_id": row.id,
         "filename": row.original_filename,
         "page_count": row.page_count,
-        "created_at": row.created_at
+        "created_at": row.created_at,
+        "doc_type": row.doc_type,
+        "title": row.title,
+        "doc_date": row.doc_date,
+        "company": row.company
     }
     for row in rows
     ]

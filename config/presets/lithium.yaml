@@ -1,0 +1,113 @@
+companies:
+  - canonical: "Vulcan Energy"
+    variants:
+      - "Vulcan Energy Resources Limited"
+      - "Vulcan Energy Resources"
+      - "Vulcan Group"
+      - "Vulcan Energie"
+      - "VKA"
+      - "VESS"
+      - "VEE"
+      - "Natürlich Insheim"
+      - "Vercana"
+      - "Comeback"
+      - "v-er.eu"
+
+  - canonical: "Cosmos Exploration"
+    variants:
+      - "Cosmos Exploration Limited"
+      - "C1X"
+      - "ASX:C1X"
+      - "Cosmos"
+      - "Koppar Resources"
+      - "Koppar"
+      - "KRX"
+      - "ASX:KRX"
+
+  - canonical: "EAU Lithium"
+    variants:
+      - "EAU Lithium Limited"
+      - "EAU"
+
+  - canonical: "YLB"
+    variants:
+      - "Yacimientos de Litio Bolivianos"
+      - "Yacimientos del Litio Bolivianos"
+
+doc_types:
+  asx_release:
+    keywords:
+      - "ASX Release"
+      - "ASX Announcement"
+      - "Market Release"
+      - "ASX Limited"
+  quarterly_report:
+    keywords:
+      - "Quarterly Report"
+      - "Quarterly Activities Report"
+      - "Quarterly Cash Flow Report"
+      - "Appendix 5B"
+  annual_report:
+    keywords:
+      - "ANNUAL REPORT"
+      - "FOR THE YEAR ENDED"
+      - "DIRECTORS' REPORT"
+      - "CONSOLIDATED STATEMENT"
+      - "FINANCIAL REPORT"
+  investor_presentation:
+    keywords:
+      - "Investor Presentation"
+      - "Corporate Presentation"
+      - "Investor Update"
+  jorc_report:
+    keywords:
+      - "JORC"
+      - "Competent Person"
+      - "Mineral Resource"
+      - "Ore Reserve"
+  prospectus:
+    keywords:
+      - "Prospectus"
+      - "Equity Raising"
+      - "Envisaged Debt Financing"
+      - "consolidated statement of profit or loss"
+  negotiation_agreement:
+    keywords:
+      - "Negotiation Agreement"
+      - "Memorandum of Understanding"
+      - "MOU"
+      - "Framework Agreement"
+  agm_notice:
+    keywords:
+      - "Annual General Meeting"
+      - "AGM"
+  asx_form:
+    keywords:
+      - "Appendix 3X"
+      - "Appendix 3Y"
+      - "Appendix 3H"
+  corporate_governance:
+    keywords:
+      - "CORPORATE GOVERNANCE"
+  tcfd_report:
+    keywords:
+      - "CLIMATE RELATED FINANCIAL DISCLOSURES"
+      - "TCFD"
+  whitepaper:
+    keywords:
+      - "DIRECT LITHIUM EXTRACTION"
+      - "DLE"
+
+date_patterns:
+  - '\|\s*\d{1,2}\s+\w+\s+\d{4}\s*\|'
+  - '\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4}'
+  - '\d{4}-\d{2}-\d{2}'
+  - '(?:SFY|H[12]/)?FY\d{2}'
+
+noise_patterns:
+  - '^(ylno|esu|lanosrep|roF)$'
+  - '^For personal use only$'
+  - '^ABN\s+\d+'
+  - '^Rules?\s+\d+'
+  - '^\d+\s+Page\s+\d+'
+  - '^Appendix\s+\d'
