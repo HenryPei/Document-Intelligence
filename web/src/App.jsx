@@ -7,6 +7,23 @@ function App() {
   const [files, setFiles] = useState([]);
   const [uploadResult, setUploadResult] = useState(null);
   const [documents, setDocuments] = useState([]);
+  const [filters, setFilters] = useState({ companies: [], doc_types: [] });
+  const [selectedCompany, setSelectedCompany] = useState("");
+  const [selectedDocType, setSelectedDocType] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  useEffect(() => {
+    fetch("http://localhost:8000/filters").then(r => r.json()).then(setFilters);
+  }, []);
+
+  useEffect(() => {
+    if (query) {
+      handleSearch({ preventDefault: () => {} });
+    }
+  }, [selectedCompany, selectedDocType, dateFrom, dateTo]);
+
+  useEffect(() => { loadDocuments(); }, [selectedCompany, selectedDocType, dateFrom, dateTo]);
 
   useEffect(() => {
     if (page && page.scrollTo) {
@@ -15,14 +32,28 @@ function App() {
     }
   }, [page]);
 
-  useEffect(() => { loadDocuments(); }, [])
+async function handleSearch(e) {
+  e.preventDefault();
+  const params = new URLSearchParams({ q: query });
+  if (selectedCompany) params.append("company", selectedCompany);
+  if (selectedDocType) params.append("doc_type", selectedDocType);
+  if (dateFrom) params.append("date_from", dateFrom);
+  if (dateTo) params.append("date_to", dateTo);
+  const response = await fetch(`http://localhost:8000/search?${params}`);
+  const data = await response.json();
+  setResults(data);
+}
 
-  async function handleSearch(e) {
-    e.preventDefault();
-    const response = await fetch(`http://localhost:8000/search?q=${query}`);
+async function loadDocuments() {
+    const params = new URLSearchParams();
+    if (selectedCompany) params.append("company", selectedCompany);
+    if (selectedDocType) params.append("doc_type", selectedDocType);
+    if (dateFrom) params.append("date_from", dateFrom);
+    if (dateTo) params.append("date_to", dateTo);
+    const response = await fetch(`http://localhost:8000/documents/?${params}`);
     const data = await response.json();
-    setResults(data);
-  }
+    setDocuments(data);
+}
 
   async function loadPage(docId, pageNum) {
     const response = await fetch(`http://localhost:8000/documents/${docId}/pages`);
@@ -48,11 +79,7 @@ function App() {
     setPage(null);
   }
 
-  async function loadDocuments() {
-    const response = await fetch (`http://localhost:8000/documents/`)
-    const data = await response.json();
-    setDocuments(data);
-  }
+  const isSearching = results.length > 0 || query.length > 0;
 
   return (
     <div>
@@ -61,11 +88,29 @@ function App() {
         <input
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            if (e.target.value === "") setResults([]);
+          }}
           placeholder="Search documents..."
         />
         <button type="submit">Search</button>
+        {isSearching && (
+          <button type="button" onClick={() => { setQuery(""); setResults([]); }}>Clear</button>
+        )}
       </form>
+      <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+        <select value={selectedCompany} onChange={e => setSelectedCompany(e.target.value)}>
+          <option value="">All companies</option>
+          {filters.companies.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select value={selectedDocType} onChange={e => setSelectedDocType(e.target.value)}>
+          <option value="">All types</option>
+          {filters.doc_types.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
+        </select>
+        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+      </div>
       <form onSubmit={uploadFiles}>
         <input type="file" multiple onChange={(e) => setFiles(Array.from(e.target.files))} />
         <button type="submit">Upload</button>
@@ -73,21 +118,25 @@ function App() {
       {uploadResult && (
         <p>Done: {uploadResult.done}, Duplicate: {uploadResult.duplicate}, Needs OCR: {uploadResult.needs_ocr}, Failed: {uploadResult.failed}</p>
       )}
-      <ul style={{ listStyle: "none", padding: 0 }}>
-        {documents.map((doc) => (
-        <li key={doc.document_id} onClick={() => loadPage(doc.document_id, 1)} style={{ cursor: "pointer" }}>
-          <strong>{doc.title || doc.filename}</strong> — {doc.company && `${doc.company} · `}{doc.doc_type && `${doc.doc_type} · `}{doc.page_count} pages
-        </li>
-        ))}
-      </ul>
-      <ul>
-        {results.map((r, i) => (
-          <li key={i} onClick={() => loadPage(r.document_id, r.page_number)} style={{ cursor: "pointer" }}>
-            <strong>{r.filename}</strong> — page {r.page_number}
-            <p dangerouslySetInnerHTML={{ __html: r.snippet }} />
-          </li>
-        ))}
-      </ul>
+      {!isSearching && (
+        <ul style={{ listStyle: "none", padding: 0 }}>
+          {documents.map((doc) => (
+            <li key={doc.document_id} onClick={() => loadPage(doc.document_id, 1)} style={{ cursor: "pointer" }}>
+              <strong>{doc.title || doc.filename}</strong> — {doc.company && `${doc.company} · `}{doc.doc_type && `${doc.doc_type} · `}{doc.page_count} pages
+            </li>
+          ))}
+        </ul>
+      )}
+      {isSearching && (
+        <ul>
+          {results.map((r, i) => (
+            <li key={i} onClick={() => loadPage(r.document_id, r.page_number)} style={{ cursor: "pointer" }}>
+              <strong>{r.title || r.filename}</strong> — {r.company && `${r.company} · `}{r.doc_type && `${r.doc_type} · `}{r.doc_date || `page ${r.page_number}`}
+              <p dangerouslySetInnerHTML={{ __html: r.snippet }} />
+            </li>
+          ))}
+        </ul>
+      )}
       {page && (
         <div style={{
           position: "fixed",
@@ -108,7 +157,7 @@ function App() {
           }} onClick={(e) => e.stopPropagation()}>
             <h2>{page.filename}</h2>
             <button onClick={() => setPage(null)}>✕ Close</button>
-               <button onClick={() => handleDelete(page.document_id)}>🗑 Delete</button>
+            <button onClick={() => handleDelete(page.document_id)}>🗑 Delete</button>
             {page.pages.map((p) => (
               <div key={p.page_number} id={`page-${p.page_number}`} style={{
                 borderTop: "1px solid #ccc",

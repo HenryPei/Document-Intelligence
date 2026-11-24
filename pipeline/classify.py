@@ -23,14 +23,16 @@ def classify_document(doc_id, conn, config) -> dict:
     for pattern in config["noise_patterns"]:
         combined = re.sub(pattern, "", combined, flags=re.MULTILINE)
 
-    matched_company = None
-    for company in config["companies"]:
-        for variant in company["variants"]:
-            if variant.lower() in combined.lower():
-                matched_company = company["canonical"]
-                break
-        if matched_company:
-            break
+    company_counts = {}
+    combined_lower = combined.lower()
+    for entry in config["companies"]:
+        count = 0
+        for variant in entry["variants"]:
+            count += combined_lower.count(variant.lower())
+        if count > 0:
+            company_counts[entry["canonical"]] = count
+
+    matched_company = max(company_counts, key=company_counts.get) if company_counts else None
 
     matched_doc_type = None
     for doc_type, info in config["doc_types"].items():
@@ -42,12 +44,8 @@ def classify_document(doc_id, conn, config) -> dict:
             break
 
     title = None
-    page1 = rows[0].text if rows else ""
-    for line in page1.split("\n"):
-        stripped = line.strip()
-        if stripped and not re.match(r'^(ylno|esu|lanosrep|roF)$', stripped):
-            title = stripped
-            break
+    parts = [matched_company, matched_doc_type.replace('_', ' ').title() if matched_doc_type else None]
+    title = " — ".join(p for p in parts if p) or None
 
     matched_date = None
     for pattern in config["date_patterns"]:
