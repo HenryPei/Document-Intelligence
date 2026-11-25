@@ -12,6 +12,14 @@ function App() {
   const [selectedDocType, setSelectedDocType] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [projects, setProjects] = useState([]);
+  const [selectedProject, setSelectedProject] = useState(null);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [selectedDocs, setSelectedDocs] = useState(new Set());
+
+  useEffect(() => {
+  fetch("http://localhost:8000/projects").then(r => r.json()).then(setProjects);
+  }, []);
 
   useEffect(() => {
     fetch("http://localhost:8000/filters").then(r => r.json()).then(setFilters);
@@ -23,7 +31,7 @@ function App() {
     }
   }, [selectedCompany, selectedDocType, dateFrom, dateTo]);
 
-  useEffect(() => { loadDocuments(); }, [selectedCompany, selectedDocType, dateFrom, dateTo]);
+  useEffect(() => { loadDocuments(); }, [selectedCompany, selectedDocType, dateFrom, dateTo, selectedProject]);
 
   useEffect(() => {
     if (page && page.scrollTo) {
@@ -39,6 +47,7 @@ async function handleSearch(e) {
   if (selectedDocType) params.append("doc_type", selectedDocType);
   if (dateFrom) params.append("date_from", dateFrom);
   if (dateTo) params.append("date_to", dateTo);
+  if (selectedProject) params.append("project_id", selectedProject);
   const response = await fetch(`http://localhost:8000/search?${params}`);
   const data = await response.json();
   setResults(data);
@@ -50,7 +59,9 @@ async function loadDocuments() {
     if (selectedDocType) params.append("doc_type", selectedDocType);
     if (dateFrom) params.append("date_from", dateFrom);
     if (dateTo) params.append("date_to", dateTo);
-    const response = await fetch(`http://localhost:8000/documents/?${params}`);
+    if (selectedProject) params.append("project_id", selectedProject);
+    const paramStr = params.toString();
+    const response = await fetch(`http://localhost:8000/documents${paramStr ? `?${paramStr}` : ""}`);
     const data = await response.json();
     setDocuments(data);
 }
@@ -81,62 +92,134 @@ async function loadDocuments() {
 
   const isSearching = results.length > 0 || query.length > 0;
 
-  return (
-    <div>
-      <h1>CEDIB Document Search</h1>
-      <form onSubmit={handleSearch}>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => {
-            setQuery(e.target.value);
-            if (e.target.value === "") setResults([]);
-          }}
-          placeholder="Search documents..."
-        />
-        <button type="submit">Search</button>
-        {isSearching && (
-          <button type="button" onClick={() => { setQuery(""); setResults([]); }}>Clear</button>
-        )}
-      </form>
-      <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
-        <select value={selectedCompany} onChange={e => setSelectedCompany(e.target.value)}>
-          <option value="">All companies</option>
-          {filters.companies.map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
-        <select value={selectedDocType} onChange={e => setSelectedDocType(e.target.value)}>
-          <option value="">All types</option>
-          {filters.doc_types.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
-        </select>
-        <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
-        <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
-      </div>
-      <form onSubmit={uploadFiles}>
-        <input type="file" multiple onChange={(e) => setFiles(Array.from(e.target.files))} />
-        <button type="submit">Upload</button>
-      </form>
-      {uploadResult && (
-        <p>Done: {uploadResult.done}, Duplicate: {uploadResult.duplicate}, Needs OCR: {uploadResult.needs_ocr}, Failed: {uploadResult.failed}</p>
-      )}
-      {!isSearching && (
+return (
+    <div style={{ display: "flex" }}>
+      <div style={{ width: "220px", borderRight: "1px solid #ccc", padding: "16px", minHeight: "100vh" }}>
+        <h3>Projects</h3>
         <ul style={{ listStyle: "none", padding: 0 }}>
-          {documents.map((doc) => (
-            <li key={doc.document_id} onClick={() => loadPage(doc.document_id, 1)} style={{ cursor: "pointer" }}>
-              <strong>{doc.title || doc.filename}</strong> — {doc.company && `${doc.company} · `}{doc.doc_type && `${doc.doc_type} · `}{doc.page_count} pages
+          <li onClick={() => setSelectedProject(null)} style={{ cursor: "pointer", fontWeight: !selectedProject ? "bold" : "normal", marginBottom: "4px" }}>
+            All Documents
+          </li>
+          {projects.map(p => (
+            <li key={p.id} onClick={() => setSelectedProject(p.id)} style={{ cursor: "pointer", fontWeight: selectedProject === p.id ? "bold" : "normal", marginBottom: "4px" }}>
+              {p.name} ({p.doc_count})
             </li>
           ))}
         </ul>
-      )}
-      {isSearching && (
-        <ul>
-          {results.map((r, i) => (
-            <li key={i} onClick={() => loadPage(r.document_id, r.page_number)} style={{ cursor: "pointer" }}>
-              <strong>{r.title || r.filename}</strong> — {r.company && `${r.company} · `}{r.doc_type && `${r.doc_type} · `}{r.doc_date || `page ${r.page_number}`}
-              <p dangerouslySetInnerHTML={{ __html: r.snippet }} />
-            </li>
-          ))}
-        </ul>
-      )}
+        <div style={{ marginTop: "12px" }}>
+          <input value={newProjectName} onChange={e => setNewProjectName(e.target.value)} placeholder="New project..." style={{ width: "140px" }} />
+          <button onClick={async () => {
+            if (!newProjectName) return;
+            await fetch(`http://localhost:8000/projects?name=${encodeURIComponent(newProjectName)}`, { method: "POST" });
+            setNewProjectName("");
+            const r = await fetch("http://localhost:8000/projects"); setProjects(await r.json());
+          }}>+</button>
+        </div>
+      </div>
+      <div style={{ flex: 1, padding: "16px" }}>
+        <h1>CEDIB Document Search</h1>
+        <form onSubmit={handleSearch}>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); if (e.target.value === "") setResults([]); }}
+            placeholder="Search documents..."
+          />
+          <button type="submit">Search</button>
+          {isSearching && (
+            <button type="button" onClick={() => { setQuery(""); setResults([]); }}>Clear</button>
+          )}
+        </form>
+        <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+          <select value={selectedCompany} onChange={e => setSelectedCompany(e.target.value)}>
+            <option value="">All companies</option>
+            {filters.companies.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select value={selectedDocType} onChange={e => setSelectedDocType(e.target.value)}>
+            <option value="">All types</option>
+            {filters.doc_types.map(t => <option key={t} value={t}>{t.replace('_', ' ')}</option>)}
+          </select>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} />
+        </div>
+        <form onSubmit={uploadFiles}>
+          <input type="file" multiple onChange={(e) => setFiles(Array.from(e.target.files))} />
+          <button type="submit">Upload</button>
+        </form>
+        {uploadResult && (
+          <p>Done: {uploadResult.done}, Duplicate: {uploadResult.duplicate}, Needs OCR: {uploadResult.needs_ocr}, Failed: {uploadResult.failed}</p>
+        )}
+        {!isSearching && (
+          <>
+          <button onClick={() => {
+          if (selectedDocs.size === documents.length) {
+            setSelectedDocs(new Set());
+          } else {
+            setSelectedDocs(new Set(documents.map(d => d.document_id)));
+          }
+          }}>
+          {selectedDocs.size === documents.length ? "Deselect all" : "Select all"}
+          </button>
+            {selectedDocs.size > 0 && (
+              <div style={{ display: "flex", gap: "8px", alignItems: "center", marginBottom: "8px" }}>
+                <span>{selectedDocs.size} selected</span>
+                <select id="bulk-project">
+                  <option value="">No project</option>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+                <button onClick={async () => {
+                  const pid = document.getElementById("bulk-project").value || null;
+                  for (const docId of selectedDocs) {
+                    await fetch(`http://localhost:8000/documents/${docId}/project?project_id=${pid}`, { method: "PUT" });
+                  }
+                  setSelectedDocs(new Set());
+                  loadDocuments();
+                  const r = await fetch("http://localhost:8000/projects"); setProjects(await r.json());
+                }}>Move</button>
+                <button onClick={async () => {
+                  if (!window.confirm(`Delete ${selectedDocs.size} documents?`)) return;
+                  for (const docId of selectedDocs) {
+                    await fetch(`http://localhost:8000/documents/${docId}`, { method: "DELETE" });
+                  }
+                  setSelectedDocs(new Set());
+                  loadDocuments();
+                  const r = await fetch("http://localhost:8000/projects"); setProjects(await r.json());
+                }}>Delete</button>
+                <button onClick={() => setSelectedDocs(new Set())}>Cancel</button>
+              </div>
+            )}
+            <ul style={{ listStyle: "none", padding: 0 }}>
+              {documents.map((doc) => (
+                <li key={doc.document_id} onClick={() => loadPage(doc.document_id, 1)} style={{ cursor: "pointer", display: "flex", alignItems: "center", gap: "8px" }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedDocs.has(doc.document_id)}
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => {
+                      const next = new Set(selectedDocs);
+                      e.target.checked ? next.add(doc.document_id) : next.delete(doc.document_id);
+                      setSelectedDocs(next);
+                    }}
+                  />
+                  <span>
+                    <strong>{doc.title || doc.filename}</strong> — {doc.company && `${doc.company} · `}{doc.doc_type && `${doc.doc_type} · `}{doc.page_count} pages
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {isSearching && (
+          <ul>
+            {results.map((r, i) => (
+              <li key={i} onClick={() => loadPage(r.document_id, r.page_number)} style={{ cursor: "pointer" }}>
+                <strong>{r.title || r.filename}</strong> — {r.company && `${r.company} · `}{r.doc_type && `${r.doc_type} · `}{r.doc_date || `page ${r.page_number}`}
+                <p dangerouslySetInnerHTML={{ __html: r.snippet }} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
       {page && (
         <div style={{
           position: "fixed",
@@ -157,7 +240,6 @@ async function loadDocuments() {
           }} onClick={(e) => e.stopPropagation()}>
             <h2>{page.filename}</h2>
             <button onClick={() => setPage(null)}>✕ Close</button>
-            <button onClick={() => handleDelete(page.document_id)}>🗑 Delete</button>
             {page.pages.map((p) => (
               <div key={p.page_number} id={`page-${p.page_number}`} style={{
                 borderTop: "1px solid #ccc",

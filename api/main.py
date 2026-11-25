@@ -18,8 +18,40 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.post("/projects")
+def create_project(name: str):
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("INSERT INTO projects (name) VALUES (:name) RETURNING id, name, created_at"),
+            {"name": name},
+        ).first()
+        conn.commit()
+    return {"id": row.id, "name": row.name, "created_at": row.created_at}
+
+@app.get("/projects")
+def list_projects():
+    with engine.connect() as conn:
+        rows = conn.execute(text("""
+            SELECT p.id, p.name, p.created_at, COUNT(d.id) as doc_count
+            FROM projects p
+            LEFT JOIN documents d ON d.project_id = p.id
+            GROUP BY p.id
+            ORDER BY p.created_at DESC
+        """)).fetchall()
+    return [{"id": r.id, "name": r.name, "created_at": r.created_at, "doc_count": r.doc_count} for r in rows]
+
+@app.put("/documents/{doc_id}/project")
+def assign_project(doc_id: int, project_id: int = None):
+    with engine.connect() as conn:
+        conn.execute(
+            text("UPDATE documents SET project_id = :project_id WHERE id = :doc_id"),
+            {"project_id": project_id, "doc_id": doc_id},
+        )
+        conn.commit()
+    return {"ok": True}
+
 @app.get("/search")
-def search(q: str, company: str = None, doc_type: str = None, date_from: str = None, date_to: str = None):
+def search(q: str, company: str = None, doc_type: str = None, date_from: str = None, date_to: str = None, project_id: int = None):
     with engine.connect() as conn:
         conditions = ["p.search_vector @@ tsq"]
         params = {"q": q}
@@ -36,6 +68,9 @@ def search(q: str, company: str = None, doc_type: str = None, date_from: str = N
         if date_to:
             conditions.append("d.doc_date <= :date_to")
             params["date_to"] = date_to
+        if project_id:
+            conditions.append("d.project_id = :project_id")
+            params["project_id"] = project_id
 
         where = " AND ".join(conditions)
 
@@ -78,7 +113,7 @@ def get_filters():
         }
 
 @app.get("/documents")
-async def get_documents(company: str = None, doc_type: str = None, date_from: str = None, date_to: str = None):
+async def get_documents(company: str = None, doc_type: str = None, date_from: str = None, date_to: str = None, project_id: int = None):
     with engine.connect() as conn:
         conditions = []
         params = {}
@@ -94,11 +129,15 @@ async def get_documents(company: str = None, doc_type: str = None, date_from: st
         if date_to:
             conditions.append("d.doc_date <= :date_to")
             params["date_to"] = date_to
+        if project_id:
+            conditions.append("d.project_id = :project_id")
+            params["project_id"] = project_id
+
         where = ("WHERE " + " AND ".join(conditions)) if conditions else ""
         rows = conn.execute(
             text(f"""
                 SELECT d.id, d.original_filename, d.page_count, d.created_at,
-                       d.doc_type, d.title, d.doc_date, d.company
+                       d.doc_type, d.title, d.doc_date, d.company, d.project_id
                 FROM documents d
                 {where}
                 ORDER BY created_at DESC
@@ -117,6 +156,7 @@ async def get_documents(company: str = None, doc_type: str = None, date_from: st
             "title": row.title,
             "doc_date": row.doc_date,
             "company": row.company,
+            "project_id": row.project_id,
         }
         for row in rows
     ]
