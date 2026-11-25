@@ -16,22 +16,33 @@ function App() {
   const [selectedProject, setSelectedProject] = useState(null);
   const [newProjectName, setNewProjectName] = useState("");
   const [selectedDocs, setSelectedDocs] = useState(new Set());
+  const [apiKey, setApiKey] = useState(localStorage.getItem("apiKey") || "");
+  const [loggedIn, setLoggedIn] = useState(localStorage.getItem("apiKey"));
+
+  function authFetch(url, options = {}) {
+    return fetch(url, {
+      ...options,
+      headers: { ...options.headers, Authorization: `Bearer ${apiKey}` },
+    });
+  }
 
   useEffect(() => {
-  fetch("http://localhost:8000/projects").then(r => r.json()).then(setProjects);
-  }, []);
+    if (loggedIn) authFetch("http://localhost:8000/projects").then(r => r.json()).then(setProjects);
+  }, [loggedIn]);
 
   useEffect(() => {
-    fetch("http://localhost:8000/filters").then(r => r.json()).then(setFilters);
-  }, []);
+    if (loggedIn) authFetch("http://localhost:8000/filters").then(r => r.json()).then(setFilters);
+  }, [loggedIn]);
 
   useEffect(() => {
-    if (query) {
+    if (loggedIn) loadDocuments();
+  }, [loggedIn, selectedCompany, selectedDocType, dateFrom, dateTo, selectedProject]);
+
+  useEffect(() => {
+    if (loggedIn && query) {
       handleSearch({ preventDefault: () => {} });
     }
-  }, [selectedCompany, selectedDocType, dateFrom, dateTo]);
-
-  useEffect(() => { loadDocuments(); }, [selectedCompany, selectedDocType, dateFrom, dateTo, selectedProject]);
+  }, [loggedIn, selectedCompany, selectedDocType, dateFrom, dateTo]);
 
   useEffect(() => {
     if (page && page.scrollTo) {
@@ -48,7 +59,7 @@ async function handleSearch(e) {
   if (dateFrom) params.append("date_from", dateFrom);
   if (dateTo) params.append("date_to", dateTo);
   if (selectedProject) params.append("project_id", selectedProject);
-  const response = await fetch(`http://localhost:8000/search?${params}`);
+  const response = await authFetch(`http://localhost:8000/search?${params}`);
   const data = await response.json();
   setResults(data);
 }
@@ -61,13 +72,13 @@ async function loadDocuments() {
     if (dateTo) params.append("date_to", dateTo);
     if (selectedProject) params.append("project_id", selectedProject);
     const paramStr = params.toString();
-    const response = await fetch(`http://localhost:8000/documents${paramStr ? `?${paramStr}` : ""}`);
+    const response = await authFetch(`http://localhost:8000/documents${paramStr ? `?${paramStr}` : ""}`);
     const data = await response.json();
     setDocuments(data);
 }
 
   async function loadPage(docId, pageNum) {
-    const response = await fetch(`http://localhost:8000/documents/${docId}/pages`);
+    const response = await authFetch(`http://localhost:8000/documents/${docId}/pages`);
     const data = await response.json();
     setPage({ ...data, scrollTo: pageNum });
   }
@@ -78,21 +89,38 @@ async function loadDocuments() {
     for (const file of files) {
       formData.append("files", file)
     }
-    const response = await fetch(`http://localhost:8000/uploadfile/`, {method: "POST", body: formData});
+    const response = await authFetch(`http://localhost:8000/uploadfile/`, {method: "POST", body: formData});
     const data = await response.json();
     setUploadResult(data);
   }
 
   async function handleDelete(docId) {
     if (!window.confirm("Delete this document?")) return;
-    await fetch (`http://localhost:8000/documents/${docId}`, {method: "DELETE"});
+    await authFetch (`http://localhost:8000/documents/${docId}`, {method: "DELETE"});
     setResults(prev => prev.filter(r => r.document_id !== docId));
     setPage(null);
   }
 
   const isSearching = results.length > 0 || query.length > 0;
+if (!loggedIn) return (
+    <div>
+        <h1>CEDIB Login</h1>
+        <input type="password" placeholder="Password" onChange={e => setApiKey(e.target.value)} />
+        <button onClick={async () => {
+          const r = await fetch("http://localhost:8000/filters", {
+            headers: { Authorization: `Bearer ${apiKey}` }
+          });
+          if (r.ok) {
+            localStorage.setItem("apiKey", apiKey);
+            setLoggedIn(true);
+          } else {
+            alert("Wrong password");
+          }
+        }}>Enter</button>
+    </div>
+);
 
-return (
+else return (
     <div style={{ display: "flex" }}>
       <div style={{ width: "220px", borderRight: "1px solid #ccc", padding: "16px", minHeight: "100vh" }}>
         <h3>Projects</h3>
@@ -110,14 +138,15 @@ return (
           <input value={newProjectName} onChange={e => setNewProjectName(e.target.value)} placeholder="New project..." style={{ width: "140px" }} />
           <button onClick={async () => {
             if (!newProjectName) return;
-            await fetch(`http://localhost:8000/projects?name=${encodeURIComponent(newProjectName)}`, { method: "POST" });
+            await authFetch(`http://localhost:8000/projects?name=${encodeURIComponent(newProjectName)}`, { method: "POST" });
             setNewProjectName("");
-            const r = await fetch("http://localhost:8000/projects"); setProjects(await r.json());
+            const r = await authFetch("http://localhost:8000/projects"); setProjects(await r.json());
           }}>+</button>
         </div>
       </div>
       <div style={{ flex: 1, padding: "16px" }}>
         <h1>CEDIB Document Search</h1>
+        <button onClick={() => { localStorage.removeItem("apiKey"); setLoggedIn(false); }}>Logout</button>
         <form onSubmit={handleSearch}>
           <input
             type="text"
@@ -170,20 +199,20 @@ return (
                 <button onClick={async () => {
                   const pid = document.getElementById("bulk-project").value || null;
                   for (const docId of selectedDocs) {
-                    await fetch(`http://localhost:8000/documents/${docId}/project?project_id=${pid}`, { method: "PUT" });
+                    await authFetch(`http://localhost:8000/documents/${docId}/project?project_id=${pid}`, { method: "PUT" });
                   }
                   setSelectedDocs(new Set());
                   loadDocuments();
-                  const r = await fetch("http://localhost:8000/projects"); setProjects(await r.json());
+                  const r = await authFetch("http://localhost:8000/projects"); setProjects(await r.json());
                 }}>Move</button>
                 <button onClick={async () => {
                   if (!window.confirm(`Delete ${selectedDocs.size} documents?`)) return;
                   for (const docId of selectedDocs) {
-                    await fetch(`http://localhost:8000/documents/${docId}`, { method: "DELETE" });
+                    await authFetch(`http://localhost:8000/documents/${docId}`, { method: "DELETE" });
                   }
                   setSelectedDocs(new Set());
                   loadDocuments();
-                  const r = await fetch("http://localhost:8000/projects"); setProjects(await r.json());
+                  const r = await authFetch("http://localhost:8000/projects"); setProjects(await r.json());
                 }}>Delete</button>
                 <button onClick={() => setSelectedDocs(new Set())}>Cancel</button>
               </div>
@@ -202,7 +231,7 @@ return (
                     }}
                   />
                   <span>
-                    <strong>{doc.title || doc.filename}</strong> — {doc.company && `${doc.company} · `}{doc.doc_type && `${doc.doc_type} · `}{doc.page_count} pages
+                    <strong>{doc.title || doc.filename}</strong> — {doc.doc_date && `${doc.doc_date} · `}{doc.page_count} pages
                   </span>
                 </li>
               ))}

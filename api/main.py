@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, HTTPException
+from fastapi import FastAPI, UploadFile, HTTPException, Header, Depends
 from sqlalchemy import text
 from pipeline.db import engine
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,9 +7,14 @@ from pipeline.ingest import ingest_file
 import traceback
 import os
 
+API_KEY = os.getenv("API_KEY")
 UPLOADS = Path("data/uploads")
 
-app = FastAPI()
+async def verify_key(authorization: str = Header()):
+    if authorization != f"Bearer {API_KEY}":
+        raise HTTPException(401, "Unauthorized")
+
+app = FastAPI(dependencies=[Depends(verify_key)])
 
 app.add_middleware(
     CORSMiddleware,
